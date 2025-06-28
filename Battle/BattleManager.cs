@@ -1,14 +1,16 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System;
+using QFramework;
 
 namespace FartGame.Battle
 {
-    public class BattleManager : MonoBehaviour
+    public class BattleManager : MonoBehaviour, IController
     {
         [Header("依赖引用")]
         [SerializeField] private MusicTimeManager musicTimeManager;
         [SerializeField] private BattleVisualController visualController;
+        [SerializeField] private FartGame.BattleController battleController;
         
         [Header("战斗状态")]
         [SerializeField] private BattleStatus currentStatus;
@@ -45,6 +47,12 @@ namespace FartGame.Battle
             {
                 Debug.LogError("[BattleManager] 谱面系统初始化失败");
                 return;
+            }
+            
+            // 激活战斗UI
+            if (battleController != null)
+            {
+                battleController.SetUIActive(true);
             }
             
             isInitialized = true;
@@ -106,8 +114,24 @@ namespace FartGame.Battle
                 musicTimeManager.StopPlaying();
             }
             
+            // 隐藏战斗UI
+            if (battleController != null)
+            {
+                battleController.SetUIActive(false);
+            }
+            
             // 创建战斗结果
             BattleResult result = CreateBattleResult();
+            
+            // 根据胜利/失败发送不同的Command
+            if (result.isVictory)
+            {
+                this.SendCommand(new FartGame.BattleVictoryCommand(result));
+            }
+            else
+            {
+                this.SendCommand(new FartGame.BattleDefeatCommand(result));
+            }
             
             currentStatus.phase = BattlePhase.Completed;
             onBattleComplete?.Invoke(result);
@@ -409,6 +433,27 @@ namespace FartGame.Battle
             Debug.Log($"[BattleManager] 自动Miss: {noteInfo}");
             currentStatus.currentCombo = 0;
             // TODO: 触发Miss特效
+        }
+        
+        // === 为BattleController提供的数据接口 ===
+        public float GetEnemyMaxHealth()
+        {
+            return enemyData?.maxStamina ?? 100f;
+        }
+        
+        public BattleJudgeResult? GetLastJudgment()
+        {
+            return judgementSystem?.GetLastJudgment();
+        }
+        
+        public float GetLastJudgmentTime()
+        {
+            return judgementSystem?.GetLastJudgmentTime() ?? 0f;
+        }
+        
+        public IArchitecture GetArchitecture()
+        {
+            return FartGame.FartGameArchitecture.Interface;
         }
     }
 }

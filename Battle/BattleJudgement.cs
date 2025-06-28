@@ -32,6 +32,10 @@ namespace FartGame.Battle
         public int missCount = 0;
         public int invalidCount = 0;
         
+        [Header("最近判定信息")]
+        private BattleJudgeResult lastJudgment = BattleJudgeResult.None;
+        private float lastJudgmentTime = 0f;
+        
         [Header("Hold状态")]
         private BattleNoteInfo currentHoldNote = null;
         private bool isHoldingKey = false;
@@ -254,6 +258,10 @@ namespace FartGame.Battle
         {
             totalInputs++;
             
+            // 更新最近判定信息
+            lastJudgment = result;
+            lastJudgmentTime = UnityEngine.Time.time;
+            
             switch (result)
             {
                 case BattleJudgeResult.Perfect:
@@ -309,6 +317,8 @@ namespace FartGame.Battle
             invalidCount = 0;
             currentHoldNote = null;
             isHoldingKey = false;
+            lastJudgment = BattleJudgeResult.None;
+            lastJudgmentTime = 0f;
             
             LogDebug("统计信息已重置");
         }
@@ -322,6 +332,22 @@ namespace FartGame.Battle
             if (validInputs == 0) return 0f;
             
             return (float)(perfectCount + goodCount) / validInputs;
+        }
+        
+        /// <summary>
+        /// 获取最近的判定结果
+        /// </summary>
+        public BattleJudgeResult? GetLastJudgment()
+        {
+            return lastJudgment == BattleJudgeResult.None ? null : lastJudgment;
+        }
+        
+        /// <summary>
+        /// 获取最近判定的时间
+        /// </summary>
+        public float GetLastJudgmentTime()
+        {
+            return lastJudgmentTime;
         }
         
         /// <summary>

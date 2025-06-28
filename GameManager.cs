@@ -67,31 +67,18 @@ namespace FartGame
             PauseMainGameSystems();
             
             // 2. 切换游戏状态（通过QFramework）
-            this.SendCommand<StartBattleCommand>();
+            this.SendCommand(new StartBattleCommand(enemyData));
             
-            // 3. 提取玩家数据
-            var playerData = ExtractPlayerBattleData();
-            
-            // 4. 实例化战斗系统
-            InstantiateBattleSystem(playerData, enemyData);
+            // 3. 实例化战斗系统
+            InstantiateBattleSystem(enemyData);
         }
         
-        // === 数据提取方法 ===
-        private PlayerBattleData ExtractPlayerBattleData()
-        {
-            var playerModel = this.GetModel<PlayerModel>();
-            return new PlayerBattleData
-            {
-                fartValue = playerModel.FartValue.Value,
-                position = playerModel.Position.Value,
-                isInFumeMode = playerModel.IsFumeMode.Value
-            };
-        }
+
         
         // === 战斗完成回调 ===
         private void OnBattleComplete(BattleResult result)
         {
-            Debug.Log($"[战斗系统] 战斗结束 - 胜利: {result.isVictory}");
+            Debug.Log($"[游戏管理器] 战斗结束 - 胜利: {result.isVictory}");
             
             // 处理战斗结果
             ApplyBattleResults(result);
@@ -101,9 +88,6 @@ namespace FartGame
             
             // 恢复主游戏
             ResumeMainGameSystems();
-            
-            // 切换回主游戏状态
-            this.SendCommand(new EndBattleCommand(result));
         }
         
         // === 系统管理方法 ===
@@ -119,13 +103,22 @@ namespace FartGame
             // TODO: 恢复相关系统更新
         }
         
-        private void InstantiateBattleSystem(PlayerBattleData playerData, EnemyData enemyData)
+        private void InstantiateBattleSystem(EnemyData enemyData)
         {
             if (battleSystemPrefab == null)
             {
                 Debug.LogError("[游戏管理器] battleSystemPrefab未设置");
                 return;
             }
+            
+            // 直接从 PlayerModel 获取数据
+            var playerModel = this.GetModel<PlayerModel>();
+            var playerData = new PlayerBattleData
+            {
+                fartValue = playerModel.FartValue.Value,
+                position = playerModel.Position.Value,
+                isInFumeMode = playerModel.IsFumeMode.Value
+            };
             
             var battleObject = Instantiate(battleSystemPrefab);
             currentBattleManager = battleObject.GetComponent<BattleManager>();
@@ -146,6 +139,7 @@ namespace FartGame
             
             // 初始化战斗系统
             currentBattleManager.Initialize(playerData, enemyData, OnBattleComplete);
+            currentBattleManager.StartBattle();
             
             Debug.Log("[游戏管理器] 战斗系统实例化完成");
         }

@@ -56,24 +56,130 @@ namespace FartGame.Battle
         /// <summary>
         /// 添加事件
         /// </summary>
-        public void AddEvent(BattleBeatEvent beatEvent)
+        /// <param name="beatEvent">要添加的事件</param>
+        /// <param name="forceAdd">是否强制添加（忽略冲突）</param>
+        /// <returns>是否成功添加</returns>
+        public bool AddEvent(BattleBeatEvent beatEvent, bool forceAdd = false)
         {
             if (beatEvent == null)
             {
                 Debug.LogWarning("[BattleChartData] 尝试添加空的BattleBeatEvent");
-                return;
+                return false;
             }
             
-            // 检查是否已存在相同位置的事件
-            var existing = GetEventAt(beatEvent.measure, beatEvent.beat);
-            if (existing != null)
+            // 验证事件数据的基本有效性
+            var (isValidEvent, errorMessage) = beatEvent.Validate(measures, beatsPerMeasure);
+            if (!isValidEvent)
             {
-                Debug.LogWarning($"[BattleChartData] 位置 {beatEvent.GetPositionString()} 已存在事件");
-                return;
+                Debug.LogError($"[BattleChartData] 事件数据无效: {beatEvent} - {errorMessage}");
+                return false;
+            }
+            
+            // 检查冲突（除非强制添加）
+            if (!forceAdd)
+            {
+                var conflicts = BattleEventConflictDetector.GetConflictDetails(beatEvent, events);
+                if (conflicts.Count > 0)
+                {
+                    Debug.LogError($"[BattleChartData] 事件添加失败，发现 {conflicts.Count} 个冲突:");
+                    foreach (var conflict in conflicts)
+                    {
+                        Debug.LogError($"[BattleChartData]   - {conflict.description}");
+                    }
+                    return false;
+                }
             }
             
             events.Add(beatEvent);
-            Debug.Log($"[BattleChartData] 添加事件: {beatEvent}");
+            Debug.Log($"[BattleChartData] 成功添加事件: {beatEvent}{(forceAdd ? " (强制添加)" : "")}");
+            return true;
+        }
+        
+        /// <summary>
+        /// 安全添加事件（带详细结果信息）
+        /// </summary>
+        /// <param name="beatEvent">要添加的事件</param>
+        /// <returns>添加结果和详细信息</returns>
+        public (bool success, string message, List<ConflictDetail> conflicts) SafeAddEvent(BattleBeatEvent beatEvent)
+        {
+            if (beatEvent == null)
+            {
+                return (false, "事件数据为空", new List<ConflictDetail>());
+            }
+            
+            // 验证事件数据的基本有效性
+            var (isValidEvent, errorMessage) = beatEvent.Validate(measures, beatsPerMeasure);
+            if (!isValidEvent)
+            {
+                return (false, $"事件数据无效: {errorMessage}", new List<ConflictDetail>());
+            }
+            
+            // 检查冲突
+            var conflicts = BattleEventConflictDetector.GetConflictDetails(beatEvent, events);
+            if (conflicts.Count > 0)
+            {
+                string conflictMsg = $"发现 {conflicts.Count} 个冲突: " + 
+                    string.Join("; ", conflicts.Select(c => c.description));
+                return (false, conflictMsg, conflicts);
+            }
+            
+            // 添加事件
+            events.Add(beatEvent);
+            return (true, $"成功添加事件: {beatEvent}", new List<ConflictDetail>());
+        }
+        
+        /// <summary>
+        /// 尝试在附近寻找空闲位置并添加事件
+        /// </summary>
+        /// <param name="beatEvent">要添加的事件</param>
+        /// <param name="searchRadius">搜索半径</param>
+        /// <returns>添加结果、最终位置和详细信息</returns>
+        public (bool success, BattleBeatEvent finalEvent, string message) TryAddEventNearby(
+            BattleBeatEvent beatEvent, int searchRadius = 4)
+        {
+            if (beatEvent == null)
+            {
+                return (false, null, "事件数据为空");
+            }
+            
+            // 先尝试原位置
+            var (directSuccess, directMessage, _) = SafeAddEvent(beatEvent);
+            if (directSuccess)
+            {
+                return (true, beatEvent, directMessage);
+            }
+            
+            // 原位置冲突，寻找附近空闲位置
+            var freePosition = BattleEventConflictDetector.FindNearbyFreePosition(
+                beatEvent.measure, beatEvent.beat, events, measures, beatsPerMeasure, searchRadius);
+                
+            if (freePosition.HasValue)
+            {
+                var (newMeasure, newBeat) = freePosition.Value;
+                var adjustedEvent = new BattleBeatEvent(newMeasure, newBeat);
+                
+                // 如果是Hold事件，保持相同的持续时间
+                if (beatEvent.IsHoldEvent())
+                {
+                    int duration = beatEvent.holdEndBeat - beatEvent.beat;
+                    adjustedEvent = new BattleBeatEvent(newMeasure, newBeat, newBeat + duration);
+                    
+                    // 检查调整后的Hold事件是否超出边界
+                    if (adjustedEvent.holdEndBeat >= beatsPerMeasure)
+                    {
+                        return (false, null, "附近没有足够空间放置Hold事件");
+                    }
+                }
+                
+                var (adjustedSuccess, adjustedMessage, _) = SafeAddEvent(adjustedEvent);
+                if (adjustedSuccess)
+                {
+                    return (true, adjustedEvent, 
+                        $"原位置冲突，已调整到 {adjustedEvent.GetPositionString()}: {adjustedMessage}");
+                }
+            }
+            
+            return (false, null, $"原位置冲突且附近无空闲位置: {directMessage}");
         }
         
         /// <summary>
@@ -141,9 +247,15 @@ namespace FartGame.Battle
             if (beatsPerMeasure <= 0) errors.Add("每小节拍数必须大于 0");
             if (fixedDropTime <= 0) errors.Add("下落时间必须大于 0");
             
-            // 验证事件数据
+            // 验证单个事件数据
             foreach (var evt in events)
             {
+                if (evt == null)
+                {
+                    errors.Add("发现空的事件数据");
+                    continue;
+                }
+                
                 var (isValidEvent, errorMessage) = evt.Validate(measures, beatsPerMeasure);
                 if (!isValidEvent)
                 {
@@ -151,34 +263,32 @@ namespace FartGame.Battle
                 }
             }
             
-            // 检查重复事件
-            var duplicates = events
-                .GroupBy(evt => new { evt.measure, evt.beat })
-                .Where(group => group.Count() > 1)
-                .Select(group => group.Key);
+            // 使用新的冲突检测系统检查所有事件冲突
+            var allConflicts = BattleEventConflictDetector.ValidateEventList(events);
+            if (allConflicts.Count > 0)
+            {
+                // 按冲突类型分组报告
+                var conflictGroups = allConflicts.GroupBy(c => c.type);
                 
-            foreach (var duplicate in duplicates)
-            {
-                errors.Add($"重复事件: 小节{duplicate.measure + 1}拍{duplicate.beat + 1}");
-            }
-            
-            // 检查Hold事件冲突
-            foreach (var holdEvent in events.Where(e => e.IsHoldEvent()))
-            {
-                for (int beatIndex = holdEvent.beat + 1; beatIndex <= holdEvent.holdEndBeat; beatIndex++)
+                foreach (var group in conflictGroups)
                 {
-                    var conflictEvent = events.Find(e => e.measure == holdEvent.measure && e.beat == beatIndex);
-                    if (conflictEvent != null && conflictEvent != holdEvent)
+                    string conflictTypeName = GetConflictTypeName(group.Key);
+                    errors.Add($"{conflictTypeName} ({group.Count()}个):");
+                    
+                    foreach (var conflict in group)
                     {
-                        errors.Add($"Hold事件 {holdEvent.GetPositionString()} 与事件 {conflictEvent.GetPositionString()} 冲突");
+                        errors.Add($"  - {conflict.description}");
                     }
                 }
+                
+                // 调试输出详细冲突信息
+                BattleEventConflictDetector.DebugPrintConflicts(allConflicts, "[BattleChartData]");
             }
             
             bool isValid = errors.Count == 0;
             if (isValid)
             {
-                Debug.Log($"[BattleChartData] 谱面验证通过: {chartName}");
+                Debug.Log($"[BattleChartData] 谱面验证通过: {chartName} (共{events.Count}个事件)");
             }
             else
             {
@@ -186,6 +296,40 @@ namespace FartGame.Battle
             }
             
             return (isValid, errors);
+        }
+        
+        /// <summary>
+        /// 获取冲突类型的中文名称
+        /// </summary>
+        private string GetConflictTypeName(ConflictType conflictType)
+        {
+            return conflictType switch
+            {
+                ConflictType.SamePositionTap => "Tap事件位置重复",
+                ConflictType.TapHoldOverlap => "Tap与Hold重叠",
+                ConflictType.HoldHoldOverlap => "Hold事件时间重叠",
+                ConflictType.SamePositionHold => "Hold事件完全重复",
+                _ => "未知冲突类型"
+            };
+        }
+        
+        /// <summary>
+        /// 获取谱面冲突统计信息
+        /// </summary>
+        public (int totalConflicts, Dictionary<ConflictType, int> conflictCounts) GetConflictStatistics()
+        {
+            var allConflicts = BattleEventConflictDetector.ValidateEventList(events);
+            var conflictCounts = new Dictionary<ConflictType, int>();
+            
+            foreach (var conflict in allConflicts)
+            {
+                if (conflictCounts.ContainsKey(conflict.type))
+                    conflictCounts[conflict.type]++;
+                else
+                    conflictCounts[conflict.type] = 1;
+            }
+            
+            return (allConflicts.Count, conflictCounts);
         }
         
         /// <summary>
@@ -233,7 +377,7 @@ namespace FartGame.Battle
             description = sourceChart.description;
             difficulty = sourceChart.difficulty;
             
-            // 复制事件列表
+            // 复制事件列表（强制添加以保持原始数据完整性）
             events.Clear();
             foreach (var evt in sourceChart.events)
             {
@@ -244,14 +388,21 @@ namespace FartGame.Battle
                     eventType = evt.eventType,
                     holdEndBeat = evt.holdEndBeat
                 };
-                events.Add(newEvent);
+                AddEvent(newEvent, true); // 强制添加，保持原数据
             }
             
-            Debug.Log($"[BattleChartData] 已从 {sourceChart.chartName} 复制谱面数据");
+            // 验证复制后的数据
+            var (isValid, validationErrors) = ValidateChart();
+            if (!isValid)
+            {
+                Debug.LogWarning($"[BattleChartData] 复制的谱面数据存在冲突:\n{string.Join("\n", validationErrors)}");
+            }
+            
+            Debug.Log($"[BattleChartData] 已从 {sourceChart.chartName} 复制谱面数据，验证结果: {(isValid ? "通过" : "存在冲突")}");
         }
         
         /// <summary>
-        /// 创建测试谱面数据
+        /// 创建测试谱面数据（使用安全添加方法）
         /// </summary>
         public void GenerateTestChart()
         {
@@ -261,22 +412,35 @@ namespace FartGame.Battle
             for (int measure = 0; measure < measures; measure++)
             {
                 // 第1拍
-                AddEvent(new BattleBeatEvent(measure, 0));
+                AddEvent(new BattleBeatEvent(measure, 0), false);
                 
                 // 第5拍（如果有的话）
                 if (beatsPerMeasure > 4)
                 {
-                    AddEvent(new BattleBeatEvent(measure, 4));
+                    AddEvent(new BattleBeatEvent(measure, 4), false);
                 }
                 
-                // 每隔一小节添加一个Hold事件
+                // 每隔一小节添加一个Hold事件（确保不与已有事件冲突）
                 if (measure % 2 == 0 && beatsPerMeasure > 6)
                 {
-                    AddEvent(new BattleBeatEvent(measure, 2, 6)); // 第3拍到第7拍的Hold
+                    // 尝试在第3拍到第7拍添加Hold，如果冲突则寻找附近位置
+                    var holdEvent = new BattleBeatEvent(measure, 2, 6);
+                    var (success, finalEvent, message) = TryAddEventNearby(holdEvent);
+                    if (!success)
+                    {
+                        Debug.LogWarning($"[BattleChartData] 无法添加Hold事件到小节{measure + 1}: {message}");
+                    }
                 }
             }
             
-            Debug.Log($"[BattleChartData] 生成测试谱面，包含 {events.Count} 个事件");
+            // 验证生成的谱面
+            var (isValid, validationErrors) = ValidateChart();
+            if (!isValid)
+            {
+                Debug.LogError($"[BattleChartData] 生成的测试谱面存在问题:\n{string.Join("\n", validationErrors)}");
+            }
+            
+            Debug.Log($"[BattleChartData] 生成测试谱面完成，包含 {events.Count} 个事件，验证结果: {(isValid ? "通过" : "失败")}");
         }
         
         // Unity编辑器验证

@@ -25,6 +25,9 @@ namespace FartGame
                 case GameState.Gameplay:
                     HandleGameplayState();
                     break;
+                case GameState.Battle:
+                    HandleBattleState();
+                    break;
                 case GameState.Paused:
                     HandlePausedState();
                     break;
@@ -50,6 +53,12 @@ namespace FartGame
         private void HandlePausedState()
         {
             mGameModel.IsPaused.Value = true;
+        }
+        
+        private void HandleBattleState()
+        {
+            // 进入战斗状态处理
+            Debug.Log("[GameStateSystem] 进入战斗状态");
         }
         
         private void HandleGameOverState()
