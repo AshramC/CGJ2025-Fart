@@ -48,6 +48,21 @@ namespace FartGame
                 return;
             }
             
+            // 验证敌人数据和谱面数据
+            if (enemyData == null)
+            {
+                Debug.LogError("[游戏管理器] 敌人数据为空，无法启动战斗");
+                return;
+            }
+            
+            if (enemyData.chartData == null)
+            {
+                Debug.LogError("[游戏管理器] 敌人缺少谱面数据，无法启动战斗");
+                return;
+            }
+            
+            Debug.Log($"[游戏管理器] 启动战斗 - 敌人: {enemyData.enemyName}, 谱面: {enemyData.chartData.chartName}");
+            
             // 1. 暂停主游戏系统
             PauseMainGameSystems();
             
@@ -148,8 +163,16 @@ namespace FartGame
         
         private void ApplyBattleResults(BattleResult result)
         {
+            // 输出详细的战斗结果
+            Debug.Log($"[游戏管理器] 战斗结果详情:");
+            Debug.Log($"  胜利: {result.isVictory}");
+            Debug.Log($"  准确率: {result.accuracy:P1}");
+            Debug.Log($"  总音符: {result.totalNotes}");
+            Debug.Log($"  Perfect: {result.perfectCount}, Good: {result.goodCount}, Miss: {result.missCount}");
+            Debug.Log($"  最大连击: {result.maxCombo}");
+            
             // TODO: 将战斗结果应用到游戏状态
-            Debug.Log($"[游戏管理器] 应用战斗结果: 胜利={result.isVictory}, 精度={result.accuracy:F2}");
+            // 例如：更新玩家经验、解锁新内容等
         }
     }
 }

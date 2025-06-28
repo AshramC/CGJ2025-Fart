@@ -20,6 +20,10 @@ namespace FartGame.Battle
         public float maxStamina;
         public BattleSequence battleSequence;
         public GameObject enemyPrefab;
+        
+        [Header("谱面数据")]
+        [Tooltip("战斗谱面数据")]
+        public BattleChartData chartData;
     }
 
     [System.Serializable]
@@ -31,6 +35,16 @@ namespace FartGame.Battle
         public int totalMisses;
         public float accuracy;
         public int maxCombo;
+        
+        [Header("谱面相关统计")]
+        public int perfectCount;
+        public int goodCount;
+        public int missCount;
+        public int totalNotes;
+        public float chartAccuracy;
+        public float averageTimingError;
+        public int holdNotesCompleted;
+        public int holdNotesTotal;
     }
 
     // 战斗状态枚举
