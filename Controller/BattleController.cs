@@ -15,8 +15,8 @@ namespace FartGame
         [SerializeField] private Text judgmentText;
         [SerializeField] private GameObject pauseMenu;
         
-        [Header("引用")]
-        [SerializeField] private BattleManager battleManager;
+        [Header("引用 - 通过单例访问")]
+        // battleManager 已移除，通过 BattleManager.Instance 访问
         
         private bool isActive = false;
         private float lastJudgmentDisplayTime = 0f;
@@ -29,7 +29,7 @@ namespace FartGame
         
         void Update()
         {
-            if (!isActive || battleManager == null) return;
+            if (!isActive || BattleManager.Instance == null || !BattleManager.Instance.IsInBattle()) return;
             
             // 实时更新UI（直接从BattleManager获取数据）
             UpdateBattleUI();
@@ -37,15 +37,15 @@ namespace FartGame
         
         private void UpdateBattleUI()
         {
-            var status = battleManager.GetCurrentStatus();
+            var status = BattleManager.Instance.GetCurrentStatus();
             
             // 注意：屁值显示已移至BattleUI组件处理，此处不再更新
             
             // 显示最新判定结果（可选）
             if (judgmentText != null)
             {
-                var lastJudgment = battleManager.GetLastJudgment();
-                var lastJudgmentTime = battleManager.GetLastJudgmentTime();
+                var lastJudgment = BattleManager.Instance.GetLastJudgment();
+                var lastJudgmentTime = BattleManager.Instance.GetLastJudgmentTime();
                 
                 if (lastJudgment.HasValue && lastJudgmentTime > lastJudgmentDisplayTime)
                 {
@@ -74,9 +74,9 @@ namespace FartGame
         
         private void OnPauseClicked()
         {
-            if (battleManager != null)
+            if (BattleManager.Instance != null)
             {
-                battleManager.PauseBattle();
+                BattleManager.Instance.PauseBattle();
                 if (pauseMenu != null)
                 {
                     pauseMenu.SetActive(true);
@@ -86,9 +86,9 @@ namespace FartGame
         
         public void OnResumeClicked()
         {
-            if (battleManager != null)
+            if (BattleManager.Instance != null)
             {
-                battleManager.ResumeBattle();
+                BattleManager.Instance.ResumeBattle();
                 if (pauseMenu != null)
                 {
                     pauseMenu.SetActive(false);

@@ -1,12 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// 音乐时间管理器 - 改进版本
-/// 移除单例模式，通过SystemManager管理生命周期
+/// 音乐时间管理器 - 单例版本
 /// 职责：音乐播放 + 时间基准服务
 /// </summary>
 public class MusicTimeManager : MonoBehaviour
 {
+    public static MusicTimeManager Instance { get; private set; }
     [Header("音乐播放设置")]
     public AudioClip musicClip;
     public float musicStartOffset = 0f;
@@ -23,10 +23,37 @@ public class MusicTimeManager : MonoBehaviour
     private double musicStartTime;
     private AudioSource musicSource;
     private bool hasMusicStarted = false;
+    
+    #region 单例管理
+    
+    void Awake()
+    {
+        // 单例模式实现
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            Initialize();
+        }
+        else if (Instance != this)
+        {
+            Debug.LogWarning("[MusicTimeManager] 检测到重复实例，销毁多余对象");
+            Destroy(gameObject);
+        }
+    }
+    
+    void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
+    
+    #endregion
 
     /// <summary>
-    /// 组件初始化 - 由SystemManager调用
-    /// 替代原来的Awake和Start逻辑
+    /// 组件初始化 - 在Awake中调用
     /// </summary>
     public void Initialize()
     {
@@ -39,7 +66,7 @@ public class MusicTimeManager : MonoBehaviour
         InitializeAudioSource();
         isInitialized = true;
         
-        Debug.Log("[MusicTimeManager] 初始化完成");
+        Debug.Log("[MusicTimeManager] 单例初始化完成");
     }
 
     void Update()
@@ -51,28 +78,19 @@ public class MusicTimeManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 配置音乐播放
+    /// 开始战斗(简化接口)
     /// </summary>
-    public void ConfigureMusic(AudioClip clip, float startOffset = 0f, float volume = 0.8f)
+    public void StartBattle()
     {
-        if (!isInitialized)
-        {
-            Debug.LogError("[MusicTimeManager] 尚未初始化，无法配置音乐");
-            return;
-        }
-
-        musicClip = clip;
-        musicStartOffset = startOffset;
-        musicVolume = volume;
-        
-        // 更新AudioSource设置
-        if (musicSource != null)
-        {
-            musicSource.clip = musicClip;
-            musicSource.volume = musicVolume;
-        }
-        
-        Debug.Log($"[MusicTimeManager] 音乐配置完成: {clip?.name ?? "null"}");
+        StartPlaying();
+    }
+    
+    /// <summary>
+    /// 停止战斗(简化接口)
+    /// </summary>
+    public void StopBattle()
+    {
+        StopPlaying();
     }
 
     /// <summary>

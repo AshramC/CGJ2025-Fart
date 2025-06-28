@@ -8,9 +8,10 @@ namespace FartGame.Battle
 {
     public class BattleManager : MonoBehaviour, IController, ICanSendEvent
     {
+        public static BattleManager Instance { get; private set; }
+        
         [Header("依赖引用")]
-        [SerializeField] private MusicTimeManager musicTimeManager;
-        // [SerializeField] private FartGame.BattleController battleController; // 已移除，只保留BattleUI
+        // MusicTimeManager 改为通过单例访问
         [SerializeField] private BattleUI battleUI;
         
         [Header("战斗状态")]
@@ -28,11 +29,57 @@ namespace FartGame.Battle
         private Action<BattleResult> onBattleComplete;
         private bool isInitialized = false;
         private bool isChartSystemReady = false;
+        private bool isInBattle = false;
+        
+        #region 单例管理
+        
+        void Awake()
+        {
+            // 单例模式实现
+            if (Instance == null)
+            {
+                Instance = this;
+                DontDestroyOnLoad(gameObject);
+                InitializeSingleton();
+            }
+            else if (Instance != this)
+            {
+                Debug.LogWarning("[BattleManager] 检测到重复实例，销毁多余对象");
+                Destroy(gameObject);
+            }
+        }
+        
+        void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+        
+        private void InitializeSingleton()
+        {
+            Debug.Log("[BattleManager] 单例初始化");
+            
+            // 初始化默认状态
+            currentStatus = new BattleStatus
+            {
+                phase = BattlePhase.Initializing,
+                enemyStamina = 0f,
+                currentCombo = 0,
+                buttTransparency = 1.0f,
+                currentMusicTime = 0.0
+            };
+            
+            isInitialized = true;
+        }
+        
+        #endregion
         
         // === 依赖注入接口 ===
         public void Initialize(PlayerBattleData playerData, EnemyData enemyData, Action<BattleResult> onComplete)
         {
-            // 运行时查找BattleUI组件
+            // 运行时查找BattleUI组
             FindAndValidateBattleUI();
             
             this.playerData = playerData;
@@ -82,6 +129,13 @@ namespace FartGame.Battle
             Debug.Log($"[BattleManager] 初始化完成 - 敌人: {enemyData.enemyName}");
         }
         
+        // === 公共接口 ===
+        
+        /// <summary>
+        /// 检查是否处于战斗状态
+        /// </summary>
+        public bool IsInBattle() => isInBattle;
+        
         // === 生命周期管理接口 ===
         public void StartBattle()
         {
@@ -91,17 +145,24 @@ namespace FartGame.Battle
                 return;
             }
             
+            if (isInBattle)
+            {
+                Debug.LogWarning("[BattleManager] 已在战斗中，无法启动新战斗");
+                return;
+            }
+            
             currentStatus.phase = BattlePhase.Preparing;
             Debug.Log("[BattleManager] 战斗开始");
             
             // 启动音乐
-            if (musicTimeManager != null)
+            if (MusicTimeManager.Instance != null)
             {
-                musicTimeManager.StartPlaying();
+                MusicTimeManager.Instance.StartPlaying();
             }
             
             // 切换到游戏阶段
             currentStatus.phase = BattlePhase.Playing;
+            isInBattle = true;
         }
         
         public void PauseBattle()
@@ -128,13 +189,19 @@ namespace FartGame.Battle
         
         public void EndBattle()
         {
+            if (!isInBattle)
+            {
+                Debug.LogWarning("[BattleManager] 已经不在战斗中，无法结束战斗");
+                return;
+            }
+            
             currentStatus.phase = BattlePhase.Ending;
             Debug.Log("[BattleManager] 战斗结束");
             
             // 停止音乐
-            if (musicTimeManager != null)
+            if (MusicTimeManager.Instance != null)
             {
-                musicTimeManager.StopPlaying();
+                MusicTimeManager.Instance.StopPlaying();
             }
             
             // 隐藏战斗UI
@@ -151,8 +218,8 @@ namespace FartGame.Battle
             // 创建战斗结果
             BattleResult result = CreateBattleResult();
             
-            // === 关键：通过Command同步最终数据到Model层 ===
-            SyncBattleDataToModel();
+            // 清理战斗状态
+            CleanupBattleState();
             
             // 发送战斗完成事件，由GameStateSystem统一处理
             var currentEnemyController = GetCurrentBattleEnemy();
@@ -169,16 +236,28 @@ namespace FartGame.Battle
             });
             
             currentStatus.phase = BattlePhase.Completed;
+            isInBattle = false;
             onBattleComplete?.Invoke(result);
         }
         
         /// <summary>
-        /// 战斗结束时同步数据到Model层
+        /// 清理战斗状态
         /// </summary>
-        private void SyncBattleDataToModel()
+        private void CleanupBattleState()
         {
-            // 移除实时同步逻辑
-            // 伤害处理将在ProcessBattleRewardsCommand中统一进行
+            // 清理谱面系统
+            if (chartManager != null)
+            {
+                chartManager.Reset();
+            }
+            
+            // 重置数据
+            battleData = null;
+            playerData = null;
+            enemyData = null;
+            onBattleComplete = null;
+            
+            isChartSystemReady = false;
         }
         
         // === 外部调用接口 ===
@@ -211,9 +290,9 @@ namespace FartGame.Battle
                 return;
                 
             // 更新当前音乐时间
-            if (musicTimeManager != null && musicTimeManager.IsPlaying())
+            if (MusicTimeManager.Instance != null && MusicTimeManager.Instance.IsPlaying())
             {
-                currentStatus.currentMusicTime = musicTimeManager.GetJudgementTime();
+                currentStatus.currentMusicTime = MusicTimeManager.Instance.GetJudgementTime();
             }
             
             // 处理输入
@@ -269,16 +348,7 @@ namespace FartGame.Battle
         }
         
         // === Unity生命周期 ===
-        private void OnDestroy()
-        {
-            // 清理谱面系统
-            if (chartManager != null)
-            {
-                chartManager.Reset();
-            }
-            
-            Debug.Log("[BattleManager] 组件销毁");
-        }
+        // OnDestroy已在单例管理区域定义
         
         // === 调试信息 ===
         private void OnGUI()
@@ -312,9 +382,9 @@ namespace FartGame.Battle
         private bool InitializeChartSystem()
         {
             // 检查依赖
-            if (musicTimeManager == null)
+            if (MusicTimeManager.Instance == null)
             {
-                Debug.LogError("[BattleManager] MusicTimeManager未设置");
+                Debug.LogError("[BattleManager] MusicTimeManager.Instance未初始化");
                 return false;
             }
             
@@ -327,7 +397,7 @@ namespace FartGame.Battle
             try
             {
                 // 创建谱面管理器
-                chartManager = new BattleChartManager(musicTimeManager);
+                chartManager = new BattleChartManager(MusicTimeManager.Instance);
                 
                 // 加载谱面数据
                 if (!chartManager.LoadChart(enemyData.chartData))
@@ -337,7 +407,7 @@ namespace FartGame.Battle
                 }
                 
                 // 创建判定系统
-                judgementSystem = new BattleJudgement(chartManager, musicTimeManager);
+                judgementSystem = new BattleJudgement(chartManager, MusicTimeManager.Instance);
                 
                 // 设置事件监听
                 SetupChartEvents();

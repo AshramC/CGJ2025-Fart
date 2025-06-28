@@ -134,11 +134,29 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 验证UI组件完整性
+        /// 初始化和验证UI组件
         /// </summary>
         private void Start()
         {
             ValidateComponents();
+        }
+        
+        /// <summary>
+        /// 实时从 BattleManager.Instance 获取数据更新UI
+        /// </summary>
+        private void Update()
+        {
+            // 只在战斗中才更新
+            if (BattleManager.Instance != null && BattleManager.Instance.IsInBattle() && gameObject.activeInHierarchy)
+            {
+                // 实时更新屁值显示
+                float currentFart = BattleManager.Instance.GetCurrentFartValue();
+                // 获取最大屁值（通过QFramework架构）
+                var gameConfigModel = FartGame.FartGameArchitecture.Interface.GetModel<FartGame.GameConfigModel>();
+                float maxFart = gameConfigModel?.MaxFartValue ?? 1000f;
+                
+                UpdateFartValueDirect(currentFart, maxFart);
+            }
         }
         
         /// <summary>
