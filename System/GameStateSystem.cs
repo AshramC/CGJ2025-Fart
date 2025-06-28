@@ -70,7 +70,7 @@ namespace FartGame
         
         private void OnBattleCompleted(BattleCompletedEvent e)
         {
-            Debug.Log($"[GameStateSystem] 战斗完成 - 胜利: {e.IsVictory}, 准确率: {e.Result?.accuracy:P1 ?? 0}");
+            Debug.Log($"[GameStateSystem] 战斗完成 - 胜利: {e.IsVictory}");
             
             // 取消监听
             this.UnRegisterEvent<BattleCompletedEvent>(OnBattleCompleted);

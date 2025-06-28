@@ -175,13 +175,10 @@ namespace FartGame
         
         private void ApplyBattleResults(BattleResult result)
         {
-            // 输出详细的战斗结果
+            // 输出简化的战斗结果
             Debug.Log($"[游戏管理器] 战斗结果详情:");
             Debug.Log($"  胜利: {result.isVictory}");
-            Debug.Log($"  准确率: {result.accuracy:P1}");
-            Debug.Log($"  总音符: {result.totalNotes}");
-            Debug.Log($"  Perfect: {result.perfectCount}, Good: {result.goodCount}, Miss: {result.missCount}");
-            Debug.Log($"  最大连击: {result.maxCombo}");
+            Debug.Log($"  潜在伤害: {result.potentialDamage}");
             
             // TODO: 将战斗结果应用到游戏状态
             // 例如：更新玩家经验、解锁新内容等

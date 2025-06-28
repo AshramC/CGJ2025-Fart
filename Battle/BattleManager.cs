@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System;
+using System.Collections;
 using QFramework;
 
 namespace FartGame.Battle
@@ -11,11 +12,15 @@ namespace FartGame.Battle
         [SerializeField] private MusicTimeManager musicTimeManager;
         [SerializeField] private BattleVisualController visualController;
         [SerializeField] private FartGame.BattleController battleController;
+        [SerializeField] private BattleUI battleUI;
         
         [Header("战斗状态")]
         [SerializeField] private BattleStatus currentStatus;
         [SerializeField] private PlayerBattleData playerData;
         [SerializeField] private EnemyData enemyData;
+        
+        [Header("战斗本地数据")]
+        [SerializeField] private BattleLocalData battleData;
         
         [Header("谱面系统")]
         private BattleChartManager chartManager;
@@ -32,6 +37,10 @@ namespace FartGame.Battle
             this.enemyData = enemyData;
             this.onBattleComplete = onComplete;
             
+            // 初始化本地数据
+            battleData = new BattleLocalData();
+            battleData.InitializeFromPlayer(playerData);
+            
             // 初始化状态
             currentStatus = new BattleStatus
             {
@@ -41,6 +50,12 @@ namespace FartGame.Battle
                 buttTransparency = 1.0f,
                 currentMusicTime = 0.0
             };
+            
+            // 初始化UI显示
+            if (battleUI != null)
+            {
+                battleUI.UpdateFartValueDirect(battleData.currentFartValue, GetMaxFartValue());
+            }
             
             // 初始化谱面系统
             if (!InitializeChartSystem())
@@ -123,6 +138,9 @@ namespace FartGame.Battle
             // 创建战斗结果
             BattleResult result = CreateBattleResult();
             
+            // === 关键：通过Command同步最终数据到Model层 ===
+            SyncBattleDataToModel();
+            
             // 发送战斗完成事件，由GameStateSystem统一处理
             var currentEnemyController = GetCurrentBattleEnemy();
             if (currentEnemyController == null)
@@ -139,6 +157,15 @@ namespace FartGame.Battle
             
             currentStatus.phase = BattlePhase.Completed;
             onBattleComplete?.Invoke(result);
+        }
+        
+        /// <summary>
+        /// 战斗结束时同步数据到Model层
+        /// </summary>
+        private void SyncBattleDataToModel()
+        {
+            // 移除实时同步逻辑
+            // 伤害处理将在ProcessBattleRewardsCommand中统一进行
         }
         
         // === 外部调用接口 ===
@@ -357,39 +384,17 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 创建战斗结果
+        /// 创建战斗结果（极简版）
         /// </summary>
         private BattleResult CreateBattleResult()
         {
             var result = new BattleResult
             {
-                isVictory = true, // 暂时默认胜利，后续根据逻辑调整
-                remainingStamina = currentStatus.enemyStamina,
-                totalHits = 0,
-                totalMisses = 0,
-                accuracy = 0f,
-                maxCombo = currentStatus.currentCombo
+                isVictory = !battleData.IsDefeated(), // 屁值大于0即为胜利
+                potentialDamage = battleData.totalDamageReceived  // 战斗中累积的潜在伤害
             };
             
-            // 填充谱面相关数据
-            if (judgementSystem != null)
-            {
-                result.perfectCount = judgementSystem.perfectCount;
-                result.goodCount = judgementSystem.goodCount;
-                result.missCount = judgementSystem.missCount;
-                result.totalNotes = judgementSystem.perfectCount + judgementSystem.goodCount + judgementSystem.missCount;
-                result.chartAccuracy = judgementSystem.GetAccuracy();
-                result.averageTimingError = 0f; // TODO: 实现平均时间偏差计算
-                result.holdNotesCompleted = 0; // TODO: 实现Hold统计
-                result.holdNotesTotal = 0;
-                
-                // 更新基本数据
-                result.totalHits = result.perfectCount + result.goodCount;
-                result.totalMisses = result.missCount;
-                result.accuracy = result.chartAccuracy;
-            }
-            
-            Debug.Log($"[BattleManager] 战斗结果: 胜利={result.isVictory}, 准确率={result.accuracy:P1}");
+            Debug.Log($"[BattleManager] 战斗结果: 胜利={result.isVictory}, 潜在伤害={result.potentialDamage}");
             return result;
         }
         
@@ -416,17 +421,17 @@ namespace FartGame.Battle
         {
             Debug.Log($"[BattleManager] 判定结果: {result} - {noteInfo}");
             
-            // 更新连击数
-            if (result == BattleJudgeResult.Perfect || result == BattleJudgeResult.Good)
+            // 更新最后判定
+            UpdateJudgement(result);
+            
+            // 只有Miss时才处理伤害
+            if (result == BattleJudgeResult.Miss)
             {
-                currentStatus.currentCombo++;
-            }
-            else
-            {
-                currentStatus.currentCombo = 0;
+                float damage = GetCurrentEnemyAttackPower();
+                DamageFartValue(damage);
             }
             
-            // TODO: 触发判定反馈事件
+            Debug.Log($"[BattleManager] 判定处理完成: {result}, 当前屁值: {battleData?.currentFartValue ?? 0f}");
         }
         
         private void OnHoldComplete(BattleJudgeResult result, BattleNoteInfo noteInfo)
@@ -447,8 +452,63 @@ namespace FartGame.Battle
         {
             Debug.Log($"[BattleManager] 玩家受到 {damage} 点伤害");
             
-            // 发送玩家受伤命令
-            this.SendCommand(new FartGame.DamagePlayerCommand(damage));
+            // 直接扣除战斗本地屁值（高性能路径）
+            DamageFartValue(damage);
+        }
+        
+        // === 战斗本地数据操作方法（高性能，无延迟） ===
+        
+        /// <summary>
+        /// 扣除屁值（战斗本地数据）
+        /// </summary>
+        public void DamageFartValue(float damage)
+        {
+            if (battleData == null) return;
+            
+            float oldValue = battleData.currentFartValue;
+            battleData.currentFartValue = Mathf.Max(0f, oldValue - damage);
+            battleData.totalDamageReceived += damage;
+            
+            // 立即更新UI（零延迟）
+            if (battleUI != null)
+            {
+                battleUI.UpdateFartValueDirect(battleData.currentFartValue, GetMaxFartValue());
+            }
+            
+            // 检查失败条件
+            if (battleData.IsDefeated())
+            {
+                EndBattleWithDefeat();
+            }
+            
+            Debug.Log($"[BattleManager] 玩家受伤 {damage}，屁值: {oldValue} → {battleData.currentFartValue}");
+        }
+        
+        /// <summary>
+        /// 更新判定结果
+        /// </summary>
+        public void UpdateJudgement(BattleJudgeResult result)
+        {
+            if (battleData == null) return;
+            
+            battleData.lastJudgement = result;
+            
+            // 立即更新UI反馈（零延迟）
+            if (battleUI != null)
+            {
+                battleUI.ShowJudgementFeedback(result);
+            }
+        }
+        
+        /// <summary>
+        /// 战斗失败处理
+        /// </summary>
+        private void EndBattleWithDefeat()
+        {
+            Debug.Log("[BattleManager] 战斗失败 - 屁值耗尽");
+            
+            // 立即结束战斗
+            EndBattle();
         }
         
         // === 为BattleController提供的数据接口 ===
@@ -470,6 +530,38 @@ namespace FartGame.Battle
         public IArchitecture GetArchitecture()
         {
             return FartGame.FartGameArchitecture.Interface;
+        }
+        
+        // === 公共数据访问接口 ===
+        
+        public float GetCurrentFartValue() => battleData?.currentFartValue ?? 0f;
+        public float GetInitialFartValue() => battleData?.initialFartValue ?? 0f;
+        public BattleJudgeResult GetLastJudgement() => battleData?.lastJudgement ?? BattleJudgeResult.None;
+        public float GetFartValueRatio() => battleData?.GetFartValueRatio(GetMaxFartValue()) ?? 0f;
+        public float GetTotalDamageReceived() => battleData?.totalDamageReceived ?? 0f;
+        
+        private float GetMaxFartValue()
+        {
+            return this.GetModel<GameConfigModel>().MaxFartValue;
+        }
+        
+        private float GetCurrentEnemyAttackPower()
+        {
+            var gameManager = UnityEngine.Object.FindObjectOfType<GameManager>();
+            if (gameManager != null)
+            {
+                var currentEnemy = gameManager.GetCurrentBattleEnemy();
+                if (currentEnemy != null)
+                {
+                    var enemyConfig = currentEnemy.GetEnemyConfig();
+                    if (enemyConfig != null)
+                    {
+                        return enemyConfig.attackPower;
+                    }
+                }
+            }
+            
+            return 10f; // 默认伤害值
         }
         
         // === 获取当前战斗敌人 ===

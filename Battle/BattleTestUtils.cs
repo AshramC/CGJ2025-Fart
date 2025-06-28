@@ -28,8 +28,7 @@ namespace FartGame.Battle
         {
             return result switch
             {
-                BattleJudgeResult.Perfect => "<color=yellow>★ PERFECT</color>",
-                BattleJudgeResult.Good => "<color=green>✓ GOOD</color>",
+                BattleJudgeResult.Success => "<color=green>✓ SUCCESS</color>",
                 BattleJudgeResult.Miss => "<color=red>✗ MISS</color>",
                 BattleJudgeResult.None => "<color=gray>○ NONE</color>",
                 _ => "未知"
@@ -175,8 +174,9 @@ namespace FartGame.Battle
             
             // 判定统计
             sb.AppendLine("判定统计:");
-            sb.AppendLine($"  Perfect: {judgementSystem.perfectCount}");
-            sb.AppendLine($"  Good: {judgementSystem.goodCount}");
+            int validInputs = judgementSystem.totalInputs - judgementSystem.invalidCount;
+            int successCount = validInputs - judgementSystem.missCount;
+            sb.AppendLine($"  Success: {successCount}");
             sb.AppendLine($"  Miss: {judgementSystem.missCount}");
             sb.AppendLine($"  总准确率: {judgementSystem.GetAccuracy() * 100:F1}%");
             sb.AppendLine();

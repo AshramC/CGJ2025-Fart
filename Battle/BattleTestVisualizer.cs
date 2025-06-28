@@ -343,8 +343,7 @@ namespace FartGame.Battle
         {
             return result switch
             {
-                BattleJudgeResult.Perfect => Color.yellow,
-                BattleJudgeResult.Good => Color.green,
+                BattleJudgeResult.Success => Color.green,
                 BattleJudgeResult.Miss => Color.red,
                 _ => Color.white
             };

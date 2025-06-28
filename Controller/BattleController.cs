@@ -7,11 +7,11 @@ namespace FartGame
 {
     /// <summary>
     /// 战斗控制器 - 专门管理战斗时的UI实时更新和用户交互
+    /// 已简化：移除敌人血量显示，专注于基本UI控制
     /// </summary>
     public class BattleController : MonoBehaviour, IController
     {
         [Header("战斗UI组件")]
-        [SerializeField] private Slider enemyHealthSlider;
         [SerializeField] private Text judgmentText;
         [SerializeField] private GameObject pauseMenu;
         
@@ -39,15 +39,7 @@ namespace FartGame
         {
             var status = battleManager.GetCurrentStatus();
             
-            // 更新敌人血量
-            if (enemyHealthSlider != null)
-            {
-                float maxHealth = battleManager.GetEnemyMaxHealth();
-                if (maxHealth > 0)
-                {
-                    enemyHealthSlider.value = status.enemyStamina / maxHealth;
-                }
-            }
+            // 注意：屁值显示已移至BattleUI组件处理，此处不再更新
             
             // 显示最新判定结果（可选）
             if (judgmentText != null)

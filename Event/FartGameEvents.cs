@@ -77,4 +77,13 @@ namespace FartGame
         public EnemyController EnemyController;
         public bool IsVictory;
     }
+    
+    // 玩家血量恢复事件
+    public struct PlayerHealthRestoredEvent
+    {
+        public float restoredValue;
+        public string reason;
+    }
+    
+    
 }

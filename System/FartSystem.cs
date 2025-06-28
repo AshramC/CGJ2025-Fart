@@ -218,6 +218,18 @@ namespace FartGame
             return (isHealingActive, currentHealingRate, healingTimeRemaining);
         }
         
+        // 恢复满血（战斗失败时调用）
+        public void RestoreToFullHealth()
+        {
+            float oldValue = mPlayerModel.FartValue.Value;
+            mPlayerModel.FartValue.Value = mConfig.MaxFartValue;
+            
+            Debug.Log($"[FartSystem] 玩家恢复满血: {oldValue} → {mConfig.MaxFartValue}");
+            
+            // 发送恢复事件
+            this.SendEvent<PlayerHealthRestoredEvent>();
+        }
+        
         private void OnGameStateChanged(GameStateChangedEvent e)
         {
             // 游戏开始时记录开始时间

@@ -29,22 +29,11 @@ namespace FartGame.Battle
     [System.Serializable]
     public class BattleResult
     {
+        [Header("核心结果")]
         public bool isVictory;
-        public float remainingStamina;
-        public int totalHits;
-        public int totalMisses;
-        public float accuracy;
-        public int maxCombo;
         
-        [Header("谱面相关统计")]
-        public int perfectCount;
-        public int goodCount;
-        public int missCount;
-        public int totalNotes;
-        public float chartAccuracy;
-        public float averageTimingError;
-        public int holdNotesCompleted;
-        public int holdNotesTotal;
+        [Header("伤害数据")]
+        public float potentialDamage;  // 战斗中累积的潜在伤害
     }
 
     // 战斗状态枚举

@@ -3,15 +3,12 @@ using UnityEngine.InputSystem;
 
 namespace FartGame.Battle
 {
-    /// <summary>
-    /// 战斗判定结果枚举
-    /// </summary>
+
     public enum BattleJudgeResult
     {
         None,       // 无判定
-        Miss,       // Miss
-        Good,       // Good
-        Perfect     // Perfect
+        Success,    // 成功击中（原Perfect + Good合并）
+        Miss        // 失误
     }
 
     /// <summary>
@@ -21,14 +18,11 @@ namespace FartGame.Battle
     public class BattleJudgement
     {
         [Header("判定窗口设置（毫秒）")]
-        private float perfectWindow = 50f;    // Perfect窗口
-        private float goodWindow = 100f;      // Good窗口 
+        private float successWindow = 100f;   // Success窗口（原 Perfect + Good 合并）
         private float missWindow = 200f;      // Miss窗口
         
         [Header("统计信息")]
         public int totalInputs = 0;
-        public int perfectCount = 0;
-        public int goodCount = 0;
         public int missCount = 0;
         public int invalidCount = 0;
         
@@ -59,13 +53,12 @@ namespace FartGame.Battle
         /// <summary>
         /// 设置判定窗口
         /// </summary>
-        public void SetJudgeWindows(float perfect, float good, float miss)
+        public void SetJudgeWindows(float success, float miss)
         {
-            perfectWindow = perfect;
-            goodWindow = good;
+            successWindow = success;
             missWindow = miss;
             
-            LogDebug($"判定窗口设置 - Perfect: ±{perfectWindow}ms, Good: ±{goodWindow}ms, Miss: ±{missWindow}ms");
+            LogDebug($"判定窗口设置 - Success: ±{successWindow}ms, Miss: ±{missWindow}ms");
         }
         
         /// <summary>
@@ -201,17 +194,15 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 获取Hold的最终判定结果
+        /// 获取Hold的最终判定结果 - 简化版本
         /// </summary>
         private BattleJudgeResult GetHoldFinalResult(BattleNoteInfo holdNote)
         {
             if (holdNote.IsHoldCompleted())
             {
-                // 根据完成度给予判定
-                if (holdNote.holdCompletion >= 0.9f)
-                    return BattleJudgeResult.Perfect;
-                else if (holdNote.holdCompletion >= 0.7f)
-                    return BattleJudgeResult.Good;
+                // 根据完成度给予判定，只区分Success/Miss
+                if (holdNote.holdCompletion >= 0.7f)
+                    return BattleJudgeResult.Success;
                 else
                     return BattleJudgeResult.Miss;
             }
@@ -238,16 +229,14 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 计算判定结果
+        /// 计算判定结果 - 简化为二档判定
         /// </summary>
         private BattleJudgeResult CalculateJudgeResult(float timeDiff)
         {
             float absTimeDiff = Mathf.Abs(timeDiff);
             
-            if (absTimeDiff <= perfectWindow)
-                return BattleJudgeResult.Perfect;
-            else if (absTimeDiff <= goodWindow)
-                return BattleJudgeResult.Good;
+            if (absTimeDiff <= successWindow)
+                return BattleJudgeResult.Success;
             else if (absTimeDiff <= missWindow)
                 return BattleJudgeResult.Miss;
             else
@@ -255,7 +244,7 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 更新统计信息
+        /// 更新统计信息 - 简化版本
         /// </summary>
         private void UpdateStatistics(BattleJudgeResult result)
         {
@@ -267,11 +256,8 @@ namespace FartGame.Battle
             
             switch (result)
             {
-                case BattleJudgeResult.Perfect:
-                    perfectCount++;
-                    break;
-                case BattleJudgeResult.Good:
-                    goodCount++;
+                case BattleJudgeResult.Success:
+                    // 成功判定，不需要特殊处理
                     break;
                 case BattleJudgeResult.Miss:
                     missCount++;
@@ -292,8 +278,7 @@ namespace FartGame.Battle
             string timingText = isAutoMiss ? "自动Miss" : (timeDiff > 0 ? $"+{timeDiff:F1}ms" : $"{timeDiff:F1}ms");
             string resultText = result switch
             {
-                BattleJudgeResult.Perfect => "<color=yellow>★ PERFECT ★</color>",
-                BattleJudgeResult.Good => "<color=green>✓ GOOD</color>",
+                BattleJudgeResult.Success => "<color=green>✓ SUCCESS</color>",
                 BattleJudgeResult.Miss => "<color=red>✗ MISS</color>",
                 BattleJudgeResult.None => "<color=gray>○ 无效输入</color>",
                 _ => "未知"
@@ -316,8 +301,6 @@ namespace FartGame.Battle
         public void ResetStatistics()
         {
             totalInputs = 0;
-            perfectCount = 0;
-            goodCount = 0;
             missCount = 0;
             invalidCount = 0;
             currentHoldNote = null;
@@ -329,14 +312,14 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 获取准确率
+        /// 获取准确率 - 简化版本
         /// </summary>
         public float GetAccuracy()
         {
             int validInputs = totalInputs - invalidCount;
             if (validInputs == 0) return 0f;
             
-            return (float)(perfectCount + goodCount) / validInputs;
+            return (float)(validInputs - missCount) / validInputs;
         }
         
         /// <summary>
@@ -399,18 +382,19 @@ namespace FartGame.Battle
         }
         
         /// <summary>
-        /// 获取统计摘要
+        /// 获取统计摘要 - 简化版本
         /// </summary>
         public string GetStatisticsSummary()
         {
             int validInputs = totalInputs - invalidCount;
+            int successCount = validInputs - missCount;
             float accuracy = GetAccuracy() * 100f;
             
-            return $"总输入: {totalInputs} | Perfect: {perfectCount} | Good: {goodCount} | Miss: {missCount} | 准确率: {accuracy:F1}%";
+            return $"总输入: {totalInputs} | Success: {successCount} | Miss: {missCount} | 准确率: {accuracy:F1}%";
         }
         
         /// <summary>
-        /// 打印详细统计
+        /// 打印详细统计 - 简化版本
         /// </summary>
         public void PrintStatistics()
         {
@@ -421,13 +405,13 @@ namespace FartGame.Battle
             }
             
             int validInputs = totalInputs - invalidCount;
-            float perfectRate = validInputs > 0 ? (float)perfectCount / validInputs * 100f : 0f;
-            float goodRate = validInputs > 0 ? (float)goodCount / validInputs * 100f : 0f;
+            int successCount = validInputs - missCount;
+            float successRate = validInputs > 0 ? (float)successCount / validInputs * 100f : 0f;
             float missRate = validInputs > 0 ? (float)missCount / validInputs * 100f : 0f;
             float accuracy = GetAccuracy() * 100f;
             
             Debug.Log($"[战斗判定统计] 总输入: {totalInputs} | 有效: {validInputs} | 无效: {invalidCount}");
-            Debug.Log($"Perfect: {perfectCount} ({perfectRate:F1}%) | Good: {goodCount} ({goodRate:F1}%) | Miss: {missCount} ({missRate:F1}%)");
+            Debug.Log($"Success: {successCount} ({successRate:F1}%) | Miss: {missCount} ({missRate:F1}%)");
             Debug.Log($"准确率: {accuracy:F1}%");
         }
         
