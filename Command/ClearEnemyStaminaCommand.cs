@@ -3,6 +3,9 @@ using UnityEngine;
 
 namespace FartGame
 {
+    // 注意：此Command已废弃，因为新架构中敌人不再有耐力值概念
+    // 保留仅为了兼容性，实际上不应该被调用
+    [System.Obsolete("ClearEnemyStaminaCommand is deprecated. Use new battle system instead.")]
     public class ClearEnemyStaminaCommand : AbstractCommand
     {
         private readonly EnemyController mEnemyController;
@@ -14,22 +17,10 @@ namespace FartGame
         
         protected override void OnExecute()
         {
-            if (mEnemyController != null && mEnemyController.CurrentStamina > 0)
-            {
-                // 清空敌人耐力值
-                mEnemyController.ClearStamina();
-                
-                // 发送敌人被击败事件
-                this.SendEvent(new EnemyDefeatedEvent
-                {
-                    EnemyTag = mEnemyController.GetEnemyTag(),
-                    EnemyPosition = mEnemyController.transform.position,
-                    RemainingStamina = 0f
-                });
-                
-                // 触发敌人被击败后的处理
-                this.SendCommand(new EnemyDefeatedCommand(mEnemyController.GetEnemyTag(), mEnemyController.transform.position));
-            }
+            Debug.LogWarning("[ClearEnemyStaminaCommand] 此Command已废弃，不再执行任何操作。请使用新的战斗系统。");
+            
+            // 在新架构中，敌人击败通过 BattleVictoryCommand 处理
+            // 这里不执行任何操作，避免编译错误
         }
     }
 }

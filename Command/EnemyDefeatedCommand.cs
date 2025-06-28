@@ -3,6 +3,8 @@ using UnityEngine;
 
 namespace FartGame
 {
+    // 注意：此Command的逻辑已经改变
+    // 新架构中敌人击败后不会直接触发战斗，而是通过BattleVictoryCommand处理
     public class EnemyDefeatedCommand : AbstractCommand
     {
         private readonly string mEnemyTag;
@@ -17,13 +19,20 @@ namespace FartGame
         protected override void OnExecute()
         {
             // 记录敌人被击败的信息
-            Debug.Log($"Enemy defeated: {mEnemyTag} at position {mEnemyPosition}");
+            Debug.Log($"[EnemyDefeatedCommand] Enemy defeated: {mEnemyTag} at position {mEnemyPosition}");
             
-            // 触发开始战斗命令
-            this.SendCommand(new StartEnemyBattleCommand(mEnemyTag, mEnemyPosition));
+            // 在新架构中，敌人击败后的逻辑已经在BattleVictoryCommand中处理
+            // 这里不再触发新的战斗，避免无限循环
             
-            // 这里可以添加其他敌人被击败后的逻辑
-            // 比如掉落道具、经验值奖励等
+            // 发送敌人被击败事件供其他系统监听
+            this.SendEvent(new EnemyDefeatedEvent
+            {
+                EnemyTag = mEnemyTag,
+                EnemyPosition = mEnemyPosition,
+                RemainingStamina = 0f
+            });
+            
+            Debug.Log("[EnemyDefeatedCommand] 敌人击败事件已发送");
         }
     }
 }

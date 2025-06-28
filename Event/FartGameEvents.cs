@@ -1,3 +1,6 @@
+using UnityEngine;
+using FartGame.Battle;
+
 namespace FartGame
 {
     // 游戏状态变化事件
@@ -33,14 +36,14 @@ namespace FartGame
         public GameOverReason Reason;
         public float FinalFartValue;
         public float GameDuration;
-        public UnityEngine.Vector3 PlayerPosition;
+        public Vector3 PlayerPosition;
     }
     
     // 敌人被击败事件
     public struct EnemyDefeatedEvent
     {
         public string EnemyTag;
-        public UnityEngine.Vector3 EnemyPosition;
+        public Vector3 EnemyPosition;
         public float RemainingStamina;
     }
     
@@ -48,6 +51,30 @@ namespace FartGame
     public struct EnemyBattleStartEvent
     {
         public string EnemyTag;
-        public UnityEngine.Vector3 BattlePosition;
+        public Vector3 BattlePosition;
+        public EnemyController enemyController;
+        public EnemyConfigSO enemyConfig;
+    }
+    
+    // 资源点激活事件
+    public struct ResourcePointActivatedEvent
+    {
+        public EnemyController resourceController;
+        public float healingRate;
+        public float duration;
+    }
+    
+    // 资源点停止事件
+    public struct ResourcePointDeactivatedEvent
+    {
+        public EnemyController resourceController;
+    }
+    
+    // 战斗完成事件
+    public struct BattleCompletedEvent
+    {
+        public BattleResult Result;
+        public EnemyController EnemyController;
+        public bool IsVictory;
     }
 }

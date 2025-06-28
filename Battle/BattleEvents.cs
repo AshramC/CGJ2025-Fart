@@ -85,12 +85,3 @@ namespace FartGame.Battle
         public double currentMusicTime;
     }
 }
-
-// QFramework事件定义
-namespace FartGame
-{
-    public struct BattleCompletedEvent
-    {
-        public FartGame.Battle.BattleResult Result;
-    }
-}

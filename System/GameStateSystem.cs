@@ -1,4 +1,5 @@
 using QFramework;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace FartGame
@@ -58,7 +59,47 @@ namespace FartGame
         private void HandleBattleState()
         {
             // 进入战斗状态处理
-            // Debug.Log("[GameStateSystem] 进入战斗状态");
+            Debug.Log("[GameStateSystem] 进入战斗状态");
+            
+            // 暂停主游戏系统更新
+            mGameModel.IsPaused.Value = false; // 战斗状态不算暂停，但需要区分于普通游戏
+            
+            // 监听战斗完成事件
+            this.RegisterEvent<BattleCompletedEvent>(OnBattleCompleted);
+        }
+        
+        private void OnBattleCompleted(BattleCompletedEvent e)
+        {
+            Debug.Log($"[GameStateSystem] 战斗完成 - 胜利: {e.IsVictory}, 准确率: {e.Result?.accuracy:P1 ?? 0}");
+            
+            // 取消监听
+            this.UnRegisterEvent<BattleCompletedEvent>(OnBattleCompleted);
+            
+            // 验证事件数据
+            if (e.Result == null)
+            {
+                Debug.LogError("[GameStateSystem] 战斗结果为空，但仍将切换状态");
+            }
+            
+            if (e.EnemyController == null)
+            {
+                Debug.LogError("[GameStateSystem] 敌人控制器为空，将跳过奖励处理");
+            }
+            
+            // 统一处理状态切换
+            mGameModel.CurrentGameState.Value = GameState.Gameplay;
+            
+            // 发送奖励处理命令（仅在数据有效时）
+            if (e.Result != null && e.EnemyController != null)
+            {
+                this.SendCommand(new ProcessBattleRewardsCommand(e.Result, e.EnemyController, e.IsVictory));
+            }
+            else
+            {
+                Debug.LogWarning("[GameStateSystem] 数据不完整，跳过奖励处理");
+            }
+            
+            Debug.Log("[GameStateSystem] 战斗状态处理完成，已返回主游戏状态");
         }
         
         private void HandleGameOverState()

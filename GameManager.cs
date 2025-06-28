@@ -15,6 +15,7 @@ namespace FartGame
         
         private BattleManager currentBattleManager;
         private MusicTimeManager musicTimeManager;
+        private EnemyController currentBattleEnemy;
         
         void Start()
         {
@@ -23,6 +24,9 @@ namespace FartGame
             
             // 获取系统引用
             mFartSystem = this.GetSystem<FartSystem>();
+            
+            // 监听战斗开始事件
+            this.RegisterEvent<EnemyBattleStartEvent>(OnEnemyBattleStart).UnRegisterWhenGameObjectDestroyed(gameObject);
         }
         
         void Update()
@@ -39,8 +43,15 @@ namespace FartGame
             return FartGameArchitecture.Interface;
         }
         
+        // === 战斗事件处理 ===
+        private void OnEnemyBattleStart(EnemyBattleStartEvent e)
+        {
+            // 从事件中获取敌人信息，启动战斗
+            StartBattle(e.enemyController, e.enemyConfig);
+        }
+        
         // === 战斗系统启动接口 ===
-        public void StartBattle(EnemyData enemyData)
+        public void StartBattle(EnemyController enemyController, EnemyConfigSO enemyConfig)
         {
             if (currentBattleManager != null)
             {
@@ -48,32 +59,30 @@ namespace FartGame
                 return;
             }
             
-            // 验证敌人数据和谱面数据
-            if (enemyData == null)
+            // 验证参数
+            if (enemyController == null || enemyConfig == null)
             {
-                Debug.LogError("[游戏管理器] 敌人数据为空，无法启动战斗");
+                Debug.LogError("[游戏管理器] 敌人控制器或配置数据为空，无法启动战斗");
                 return;
             }
             
-            if (enemyData.chartData == null)
+            if (enemyConfig.battleChart == null)
             {
-                Debug.LogError("[游戏管理器] 敌人缺少谱面数据，无法启动战斗");
+                Debug.LogError($"[游戏管理器] 敌人 {enemyConfig.displayName} 缺少战斗谱面数据，无法启动战斗");
                 return;
             }
             
-            Debug.Log($"[游戏管理器] 启动战斗 - 敌人: {enemyData.enemyName}, 谱面: {enemyData.chartData.chartName}");
+            Debug.Log($"[游戏管理器] 启动战斗 - 敌人: {enemyConfig.displayName}, 谱面: {enemyConfig.battleChart.chartName}");
+            
+            // 存储当前战斗敌人引用
+            currentBattleEnemy = enemyController;
             
             // 1. 暂停主游戏系统
             PauseMainGameSystems();
             
-            // 2. 切换游戏状态（通过QFramework）
-            this.SendCommand(new StartBattleCommand(enemyData));
-            
-            // 3. 实例化战斗系统
-            InstantiateBattleSystem(enemyData);
+            // 2. 实例化战斗系统
+            InstantiateBattleSystem(enemyConfig);
         }
-        
-
         
         // === 战斗完成回调 ===
         private void OnBattleComplete(BattleResult result)
@@ -103,7 +112,7 @@ namespace FartGame
             // TODO: 恢复相关系统更新
         }
         
-        private void InstantiateBattleSystem(EnemyData enemyData)
+        private void InstantiateBattleSystem(EnemyConfigSO enemyConfig)
         {
             if (battleSystemPrefab == null)
             {
@@ -118,6 +127,14 @@ namespace FartGame
                 fartValue = playerModel.FartValue.Value,
                 position = playerModel.Position.Value,
                 isInFumeMode = playerModel.IsFumeMode.Value
+            };
+            
+            // 从 EnemyConfigSO 创建 EnemyData
+            var enemyData = new EnemyData
+            {
+                enemyName = enemyConfig.displayName,
+                maxStamina = 100f, // 暂时固定值
+                chartData = enemyConfig.battleChart
             };
             
             var battleObject = Instantiate(battleSystemPrefab);
@@ -151,6 +168,7 @@ namespace FartGame
                 Destroy(currentBattleManager.gameObject);
                 currentBattleManager = null;
                 musicTimeManager = null;
+                currentBattleEnemy = null; // 清空敌人引用
                 Debug.Log("[游戏管理器] 战斗系统销毁完成");
             }
         }
@@ -167,6 +185,13 @@ namespace FartGame
             
             // TODO: 将战斗结果应用到游戏状态
             // 例如：更新玩家经验、解锁新内容等
+        }
+        
+        // === 公共接口 ===
+        // 获取当前战斗敌人的公共接口
+        public EnemyController GetCurrentBattleEnemy()
+        {
+            return currentBattleEnemy;
         }
     }
 }

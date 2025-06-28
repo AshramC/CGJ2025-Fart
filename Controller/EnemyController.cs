@@ -9,81 +9,110 @@ namespace FartGame
         [Tooltip("敌人的配置数据")]
         public EnemyConfigSO enemyConfig;
         
-        [Header("调试信息")]
-        [Tooltip("显示当前耐力值")]
-        [SerializeField] private float currentStamina;
+        [Header("运行时状态")]
+        [Tooltip("是否已被击败")]
+        [SerializeField] private bool isDefeated = false;
         
-        private bool isDefeated = false;
-        private FartSystem mFartSystem;
+        [Tooltip("资源点是否正在提供回复效果（仅ResourcePoint类型使用）")]
+        [SerializeField] private bool isResourceActive = false;
         
-        // 当前耐力值的公共只读属性
-        public float CurrentStamina => currentStamina;
+        // 公共只读属性
+        public bool IsDefeated => isDefeated;
+        public bool IsResourceActive => isResourceActive;
+        public EnemyType EnemyType => enemyConfig != null ? enemyConfig.enemyType : EnemyType.Normal;
         
         void Start()
         {
-            // 初始化
-            mFartSystem = this.GetSystem<FartSystem>();
-            
-            if (enemyConfig != null)
-            {
-                currentStamina = enemyConfig.initialStamina;
-            }
-            else
+            if (enemyConfig == null)
             {
                 Debug.LogError($"Enemy {gameObject.name} missing EnemyConfigSO!");
-                currentStamina = 100f; // 默认值
             }
         }
         
-        private void OnTriggerStay(Collider other)
+        private void OnTriggerEnter(Collider other)
         {
-            // 检查是否是玩家，且敌人未被击败
-            if (other.CompareTag("Player") && !isDefeated)
+            if (other.CompareTag("Player"))
             {
-                // 检查玩家是否在熏模式
-                if (mFartSystem != null && mFartSystem.IsPlayerInFumeMode())
+                if (!isDefeated)
                 {
-                    // 检查玩家是否有足够的屁值
-                    float playerFartValue = mFartSystem.GetPlayerFartValue();
-                    if (playerFartValue > 0 && currentStamina > 0)
-                    {
-                        // 计算消耗的屁值（可以根据敌人类型调整）
-                        float fartConsumption = Mathf.Min(playerFartValue, currentStamina);
-                        
-                        // 发送消耗玩家屁值的命令
-                        this.SendCommand(new ConsumeFartCommand(fartConsumption));
-                        
-                        // 发送清空敌人耐力的命令
-                        this.SendCommand(new ClearEnemyStaminaCommand(this));
-                    }
+                    // 敌人未被击败，触发战斗
+                    TriggerBattle();
                 }
+                else if (enemyConfig.enemyType == EnemyType.ResourcePoint && !isResourceActive)
+                {
+                    // 资源点已被击败且未激活，触发资源点交互
+                    TriggerResourcePoint();
+                }
+                // 普通敌人已被击败或资源点已激活，无反应
             }
         }
         
-        // 清空耐力值的方法（供Command调用）
-        public void ClearStamina()
+        private void TriggerBattle()
         {
-            currentStamina = 0f;
+            if (enemyConfig == null)
+            {
+                Debug.LogError($"Enemy {gameObject.name} 缺少配置数据，无法启动战斗");
+                return;
+            }
+            
+            Debug.Log($"[敌人控制器] 触发战斗 - {enemyConfig.displayName}");
+            this.SendCommand(new StartEnemyBattleCommand(this, enemyConfig));
+        }
+        
+        private void TriggerResourcePoint()
+        {
+            if (enemyConfig == null || enemyConfig.enemyType != EnemyType.ResourcePoint)
+            {
+                return;
+            }
+            
+            Debug.Log($"[敌人控制器] 激活资源点 - {enemyConfig.displayName}");
+            this.SendCommand(new ActivateResourcePointCommand(this, enemyConfig.healingRate, enemyConfig.healingDuration));
+        }
+        
+        // 标记为已击败（供Command调用）
+        public void MarkAsDefeated()
+        {
             isDefeated = true;
+            Debug.Log($"[敌人控制器] {enemyConfig?.displayName ?? gameObject.name} 已被击败");
             
             // 可以在这里添加视觉效果，比如改变材质、播放动画等
-            Debug.Log($"Enemy {gameObject.name} stamina cleared!");
         }
         
-        // 获取敌人Tag的方法（供Command调用）
-        public string GetEnemyTag()
+        // 激活资源点回复效果（供Command调用）
+        public void ActivateResourcePoint()
         {
-            return enemyConfig != null ? enemyConfig.enemyTag : "Unknown";
+            if (enemyConfig.enemyType == EnemyType.ResourcePoint)
+            {
+                isResourceActive = true;
+                Debug.Log($"[敌人控制器] 资源点 {enemyConfig.displayName} 已激活");
+                
+                // 可以在这里添加视觉效果
+            }
+        }
+        
+        // 停止资源点回复效果（供Command调用）
+        public void DeactivateResourcePoint()
+        {
+            if (enemyConfig.enemyType == EnemyType.ResourcePoint)
+            {
+                isResourceActive = false;
+                Debug.Log($"[敌人控制器] 资源点 {enemyConfig.displayName} 已停止");
+            }
         }
         
         // 重置敌人状态（供重新开始游戏时调用）
         public void ResetEnemy()
         {
-            if (enemyConfig != null)
-            {
-                currentStamina = enemyConfig.initialStamina;
-                isDefeated = false;
-            }
+            isDefeated = false;
+            isResourceActive = false;
+            Debug.Log($"[敌人控制器] {enemyConfig?.displayName ?? gameObject.name} 状态已重置");
+        }
+        
+        // 获取敌人配置信息（供外部调用）
+        public EnemyConfigSO GetEnemyConfig()
+        {
+            return enemyConfig;
         }
         
         public IArchitecture GetArchitecture()
@@ -94,9 +123,10 @@ namespace FartGame
         // 在Inspector中显示调试信息
         void OnValidate()
         {
-            if (enemyConfig != null && Application.isPlaying)
+            // 验证配置数据
+            if (enemyConfig != null && enemyConfig.battleChart == null)
             {
-                currentStamina = Mathf.Max(0, currentStamina);
+                Debug.LogWarning($"Enemy {gameObject.name} 缺少战斗谱面数据");
             }
         }
     }

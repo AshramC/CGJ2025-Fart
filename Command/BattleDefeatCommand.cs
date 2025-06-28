@@ -15,13 +15,9 @@ namespace FartGame
         
         protected override void OnExecute()
         {
-            var gameModel = this.GetModel<GameModel>();
-            
-            // 切换回游戏状态
-            gameModel.CurrentGameState.Value = GameState.Gameplay;
-            
-            // 处理失败惩罚（如果有的话）
-            ProcessDefeatPenalties();
+            // 注意：此Command已废弃，状态管理已移至GameStateSystem
+            // 失败处理已移至ProcessBattleRewardsCommand
+            Debug.LogWarning("[BattleDefeatCommand] 此Command已废弃，请使用ProcessBattleRewardsCommand");
             
             Debug.Log($"[BattleDefeat] 战斗失败 - 准确率: {result.accuracy:P1}");
         }

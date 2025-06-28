@@ -228,6 +228,9 @@ namespace FartGame.Battle
         {
             missCount++; // 不增加totalInputs，因为玩家没有输入
             
+            // 触发玩家受伤
+            TriggerPlayerDamage();
+            
             LogJudgeResult(BattleJudgeResult.Miss, 0f, noteInfo, true);
             
             // 触发自动Miss事件
@@ -272,6 +275,8 @@ namespace FartGame.Battle
                     break;
                 case BattleJudgeResult.Miss:
                     missCount++;
+                    // Miss时触发玩家受伤
+                    TriggerPlayerDamage();
                     break;
                 case BattleJudgeResult.None:
                     invalidCount++;
@@ -351,6 +356,49 @@ namespace FartGame.Battle
         }
         
         /// <summary>
+        /// 触发玩家受伤（Miss时调用）
+        /// </summary>
+        private void TriggerPlayerDamage()
+        {
+            float attackPower = GetCurrentEnemyAttackPower();
+            if (attackPower > 0f)
+            {
+                // 发送玩家受伤命令
+                // 注意：这里需要通过某种方式获取到QFramework的架构引用
+                // 但BattleJudgement不继承自任何QFramework类，所以需要通过事件或其他方式
+                LogDebug($"玩家Miss，将受到 {attackPower} 点伤害");
+                
+                // 触发伤害事件
+                OnPlayerDamaged?.Invoke(attackPower);
+            }
+        }
+        
+        /// <summary>
+        /// 获取当前敌人的攻击力
+        /// </summary>
+        private float GetCurrentEnemyAttackPower()
+        {
+            // 从 GameManager 获取当前战斗敌人的攻击力
+            var gameManager = UnityEngine.Object.FindObjectOfType<GameManager>();
+            if (gameManager != null)
+            {
+                var currentEnemy = gameManager.GetCurrentBattleEnemy();
+                if (currentEnemy != null)
+                {
+                    var enemyConfig = currentEnemy.GetEnemyConfig();
+                    if (enemyConfig != null)
+                    {
+                        return enemyConfig.attackPower;
+                    }
+                }
+            }
+            
+            // 如果获取失败，返回默认值
+            LogDebug("无法获取敌人攻击力，使用默认值");
+            return 10f; // 默认伤害值
+        }
+        
+        /// <summary>
         /// 获取统计摘要
         /// </summary>
         public string GetStatisticsSummary()
@@ -410,6 +458,11 @@ namespace FartGame.Battle
         /// 自动Miss事件
         /// </summary>
         public System.Action<BattleNoteInfo> OnAutoMiss;
+        
+        /// <summary>
+        /// 玩家受伤事件
+        /// </summary>
+        public System.Action<float> OnPlayerDamaged;
         
         #endregion
     }

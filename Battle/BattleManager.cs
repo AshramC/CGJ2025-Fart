@@ -5,7 +5,7 @@ using QFramework;
 
 namespace FartGame.Battle
 {
-    public class BattleManager : MonoBehaviour, IController
+    public class BattleManager : MonoBehaviour, IController, ICanSendEvent
     {
         [Header("依赖引用")]
         [SerializeField] private MusicTimeManager musicTimeManager;
@@ -123,15 +123,19 @@ namespace FartGame.Battle
             // 创建战斗结果
             BattleResult result = CreateBattleResult();
             
-            // 根据胜利/失败发送不同的Command
-            if (result.isVictory)
+            // 发送战斗完成事件，由GameStateSystem统一处理
+            var currentEnemyController = GetCurrentBattleEnemy();
+            if (currentEnemyController == null)
             {
-                this.SendCommand(new FartGame.BattleVictoryCommand(result));
+                Debug.LogWarning("[BattleManager] 未能获取当前战斗敌人，但仍将发送事件");
             }
-            else
+            
+            this.SendEvent(new FartGame.BattleCompletedEvent
             {
-                this.SendCommand(new FartGame.BattleDefeatCommand(result));
-            }
+                Result = result,
+                EnemyController = currentEnemyController,
+                IsVictory = result.isVictory
+            });
             
             currentStatus.phase = BattlePhase.Completed;
             onBattleComplete?.Invoke(result);
@@ -326,6 +330,9 @@ namespace FartGame.Battle
                 judgementSystem.OnJudgeResult += OnJudgeResult;
                 judgementSystem.OnHoldComplete += OnHoldComplete;
                 judgementSystem.OnAutoMiss += OnAutoMiss;
+                
+                // 监听玩家受伤事件
+                judgementSystem.OnPlayerDamaged += OnPlayerDamaged;
             }
         }
         
@@ -435,6 +442,15 @@ namespace FartGame.Battle
             // TODO: 触发Miss特效
         }
         
+        // === 新增：玩家受伤处理 ===
+        private void OnPlayerDamaged(float damage)
+        {
+            Debug.Log($"[BattleManager] 玩家受到 {damage} 点伤害");
+            
+            // 发送玩家受伤命令
+            this.SendCommand(new FartGame.DamagePlayerCommand(damage));
+        }
+        
         // === 为BattleController提供的数据接口 ===
         public float GetEnemyMaxHealth()
         {
@@ -454,6 +470,20 @@ namespace FartGame.Battle
         public IArchitecture GetArchitecture()
         {
             return FartGame.FartGameArchitecture.Interface;
+        }
+        
+        // === 获取当前战斗敌人 ===
+        private EnemyController GetCurrentBattleEnemy()
+        {
+            // 从 GameManager 获取当前战斗的敌人引用
+            var gameManager = UnityEngine.Object.FindObjectOfType<GameManager>();
+            if (gameManager != null)
+            {
+                return gameManager.GetCurrentBattleEnemy();
+            }
+            
+            Debug.LogError("[BattleManager] 未找到 GameManager");
+            return null;
         }
     }
 }

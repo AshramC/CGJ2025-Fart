@@ -50,6 +50,9 @@ namespace FartGame
                 ConsumeFart(mConfig.FartConsumptionRate * deltaTime);
             }
             
+            // 处理资源点回复效果
+            UpdateResourcePointHealing(deltaTime);
+            
             // 检查时间限制（如果启用）
             if (mConfig.EnableTimeLimit)
             {
@@ -58,6 +61,27 @@ namespace FartGame
                 {
                     this.SendCommand(new GameOverCommand(GameOverReason.TimeUp));
                 }
+            }
+        }
+        
+        // 更新资源点回复效果
+        private void UpdateResourcePointHealing(float deltaTime)
+        {
+            if (!isHealingActive)
+                return;
+                
+            // 执行回复
+            float healAmount = currentHealingRate * deltaTime;
+            float newValue = Mathf.Min(mConfig.MaxFartValue, mPlayerModel.FartValue.Value + healAmount);
+            mPlayerModel.FartValue.Value = newValue;
+            
+            // 更新剩余时间
+            healingTimeRemaining -= deltaTime;
+            
+            // 检查是否结束
+            if (healingTimeRemaining <= 0f)
+            {
+                StopResourcePointHealing();
             }
         }
         
@@ -124,6 +148,74 @@ namespace FartGame
         public float GetPlayerFartValue()
         {
             return mPlayerModel.FartValue.Value;
+        }
+        
+        // === 资源点回复系统 ===
+        private bool isHealingActive = false;
+        private float currentHealingRate = 0f;
+        private float healingTimeRemaining = 0f;
+        
+        // 启动资源点回复效果
+        public void StartResourcePointHealing(float healingRate, float duration)
+        {
+            if (isHealingActive)
+            {
+                Debug.LogWarning("[FartSystem] 已有回复效果在进行中，将覆盖当前效果");
+            }
+            
+            isHealingActive = true;
+            currentHealingRate = healingRate;
+            healingTimeRemaining = duration;
+            
+            Debug.Log($"[FartSystem] 开始资源点回复 - 每秒回复{healingRate}，持续{duration}秒");
+            this.SendEvent<ResourcePointActivatedEvent>();
+        }
+        
+        // 停止资源点回复效果
+        public void StopResourcePointHealing()
+        {
+            if (isHealingActive)
+            {
+                isHealingActive = false;
+                currentHealingRate = 0f;
+                healingTimeRemaining = 0f;
+                
+                Debug.Log("[FartSystem] 资源点回复效果已停止");
+                this.SendEvent<ResourcePointDeactivatedEvent>();
+            }
+        }
+        
+        // 提升屁值上限（普通敌人奖励）
+        public void IncreaseMaxFartValue(int amount)
+        {
+            float oldMax = mConfig.MaxFartValue;
+            mConfig.MaxFartValue += amount;
+            
+            // 同时恢复到新的最大值
+            mPlayerModel.FartValue.Value = mConfig.MaxFartValue;
+            
+            Debug.Log($"[FartSystem] 屁值上限提升 {amount}，从 {oldMax} 到 {mConfig.MaxFartValue}");
+        }
+        
+        // 强制扣除屁值（战斗中受伤）
+        public void DamageFart(float amount)
+        {
+            float newValue = Mathf.Max(mConfig.MinFartValue, mPlayerModel.FartValue.Value - amount);
+            mPlayerModel.FartValue.Value = newValue;
+            
+            Debug.Log($"[FartSystem] 玩家受伤，扣除屁值 {amount}，当前: {newValue}");
+        }
+        
+        // 检查是否正在回复中
+        public bool IsHealingActive()
+        {
+            return isHealingActive;
+        }
+        
+        // 获取回复状态信息
+        public (bool isActive, float rate, float timeRemaining) GetHealingStatus()
+        {
+            return (isHealingActive, currentHealingRate, healingTimeRemaining);
         }
         
         private void OnGameStateChanged(GameStateChangedEvent e)
