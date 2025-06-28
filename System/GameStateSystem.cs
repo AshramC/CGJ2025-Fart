@@ -58,7 +58,7 @@ namespace FartGame
         private void HandleBattleState()
         {
             // 进入战斗状态处理
-            Debug.Log("[GameStateSystem] 进入战斗状态");
+            // Debug.Log("[GameStateSystem] 进入战斗状态");
         }
         
         private void HandleGameOverState()

@@ -11,10 +11,8 @@ namespace FartGame
     public class BattleController : MonoBehaviour, IController
     {
         [Header("战斗UI组件")]
-        [SerializeField] private Text comboText;
         [SerializeField] private Slider enemyHealthSlider;
         [SerializeField] private Text judgmentText;
-        [SerializeField] private Button pauseButton;
         [SerializeField] private GameObject pauseMenu;
         
         [Header("引用")]
@@ -25,12 +23,6 @@ namespace FartGame
         
         void Start()
         {
-            // 绑定暂停按钮
-            if (pauseButton != null)
-            {
-                pauseButton.onClick.AddListener(OnPauseClicked);
-            }
-            
             // 初始化UI状态
             SetUIActive(false);
         }
@@ -46,12 +38,6 @@ namespace FartGame
         private void UpdateBattleUI()
         {
             var status = battleManager.GetCurrentStatus();
-            
-            // 更新连击数
-            if (comboText != null)
-            {
-                comboText.text = $"Combo: {status.currentCombo}";
-            }
             
             // 更新敌人血量
             if (enemyHealthSlider != null)
