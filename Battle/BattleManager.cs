@@ -10,8 +10,7 @@ namespace FartGame.Battle
     {
         [Header("依赖引用")]
         [SerializeField] private MusicTimeManager musicTimeManager;
-        [SerializeField] private BattleVisualController visualController;
-        [SerializeField] private FartGame.BattleController battleController;
+        // [SerializeField] private FartGame.BattleController battleController; // 已移除，只保留BattleUI
         [SerializeField] private BattleUI battleUI;
         
         [Header("战斗状态")]
@@ -65,9 +64,15 @@ namespace FartGame.Battle
             }
             
             // 激活战斗UI
-            if (battleController != null)
+            if (battleUI != null)
             {
-                battleController.SetUIActive(true);
+                battleUI.ResetUI(); // 重置UI状态
+                battleUI.SetUIActive(true); // 激活UI
+                Debug.Log("[BattleManager] UI已激活并重置");
+            }
+            else
+            {
+                Debug.LogError("[BattleManager] battleUI组件未设置，无法激活战斗UI");
             }
             
             isInitialized = true;
@@ -130,9 +135,10 @@ namespace FartGame.Battle
             }
             
             // 隐藏战斗UI
-            if (battleController != null)
+            if (battleUI != null)
             {
-                battleController.SetUIActive(false);
+                battleUI.SetUIActive(false);
+                Debug.Log("[BattleManager] UI已隐藏");
             }
             
             // 创建战斗结果
