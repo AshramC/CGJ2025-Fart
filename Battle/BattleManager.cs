@@ -32,6 +32,9 @@ namespace FartGame.Battle
         // === 依赖注入接口 ===
         public void Initialize(PlayerBattleData playerData, EnemyData enemyData, Action<BattleResult> onComplete)
         {
+            // 运行时查找BattleUI组件
+            FindAndValidateBattleUI();
+            
             this.playerData = playerData;
             this.enemyData = enemyData;
             this.onBattleComplete = onComplete;
@@ -72,7 +75,7 @@ namespace FartGame.Battle
             }
             else
             {
-                Debug.LogError("[BattleManager] battleUI组件未设置，无法激活战斗UI");
+                Debug.LogWarning("[BattleManager] BattleUI不可用，跳过UI激活");
             }
             
             isInitialized = true;
@@ -139,6 +142,10 @@ namespace FartGame.Battle
             {
                 battleUI.SetUIActive(false);
                 Debug.Log("[BattleManager] UI已隐藏");
+            }
+            else
+            {
+                Debug.LogWarning("[BattleManager] BattleUI不可用，跳过UI隐藏");
             }
             
             // 创建战斗结果
@@ -480,6 +487,10 @@ namespace FartGame.Battle
             {
                 battleUI.UpdateFartValueDirect(battleData.currentFartValue, GetMaxFartValue());
             }
+            else
+            {
+                Debug.LogWarning("[BattleManager] BattleUI不可用，跳过屁值显示更新");
+            }
             
             // 检查失败条件
             if (battleData.IsDefeated())
@@ -503,6 +514,10 @@ namespace FartGame.Battle
             if (battleUI != null)
             {
                 battleUI.ShowJudgementFeedback(result);
+            }
+            else
+            {
+                Debug.LogWarning("[BattleManager] BattleUI不可用，跳过判定反馈显示");
             }
         }
         
@@ -582,6 +597,28 @@ namespace FartGame.Battle
             
             Debug.LogError("[BattleManager] 未找到 GameManager");
             return null;
+        }
+        
+        // === 运行时查找BattleUI ===
+        private bool FindAndValidateBattleUI()
+        {
+            if (battleUI == null)
+            {
+                battleUI = FindObjectOfType<BattleUI>();
+                
+                if (battleUI != null)
+                {
+                    Debug.Log("[BattleManager] 成功找到BattleUI组件");
+                    return true;
+                }
+                else
+                {
+                    Debug.LogError("[BattleManager] 场景中未找到BattleUI组件，战斗UI功能将被禁用");
+                    return false;
+                }
+            }
+            
+            return true; // battleUI已经存在
         }
     }
 }
