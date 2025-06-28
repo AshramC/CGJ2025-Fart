@@ -21,6 +21,7 @@ namespace FartGame
     {
         MainMenu,
         Gameplay,
+        Battle,
         Paused,
         GameOver
     }
